@@ -1,4 +1,4 @@
-﻿const vscode = require('vscode');
+const vscode = require('vscode');
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
@@ -102,7 +102,14 @@ const ACCEPT_COMMANDS_ANTIGRAVITY = [
     'antigravity.browser.alwaysAllow',
     'antigravity.command.allowOnce',
     'antigravity.permission.allowOnce',
-    'antigravity.agent.allowOnce'
+    'antigravity.agent.allowOnce',
+    // Antigravity 2.x new command IDs
+    'antigravity.agent.proceed',
+    'antigravity.agent.trust',
+    'antigravity.agent.acceptAction',
+    'antigravity.agent.approveStep',
+    'antigravity.command.proceed',
+    'antigravity.command.trust'
 ];
 
 const ANTIGRAVITY_NATIVE_FALLBACK_COMMANDS = [
@@ -113,7 +120,13 @@ const ANTIGRAVITY_NATIVE_FALLBACK_COMMANDS = [
     'antigravity.command.allowOnce',
     'antigravity.command.alwaysAllow',
     'antigravity.command.continueGenerating',
-    'antigravity.continueGenerating'
+    'antigravity.continueGenerating',
+    // Antigravity 2.x fallback commands
+    'antigravity.agent.proceed',
+    'antigravity.agent.trust',
+    'antigravity.agent.acceptAction',
+    'antigravity.agent.approveStep',
+    'antigravity.command.proceed'
 ];
 
 const BLOCKED_DYNAMIC_COMMAND_PARTS = [
@@ -159,7 +172,13 @@ const ALLOWED_DYNAMIC_COMMAND_PARTS = [
     'terminalcommand.run',
     'terminalcommand.accept',
     'acknowledgement',
-    'agentaccept'
+    'agentaccept',
+    // Antigravity 2.x dynamic command parts
+    'trust',
+    'approvestep',
+    'acceptaction',
+    'agentproceed',
+    'agenttrust'
 ];
 
 function isSafeAntigravityDynamicCommand(cmd) {
@@ -295,7 +314,12 @@ function delay(ms) {
 
 function getAntigravityLogsRoot() {
     const appData = process.env.APPDATA || '';
-    return appData ? path.join(appData, 'Antigravity', 'logs') : '';
+    if (!appData) return '';
+    // Antigravity 2.x uses 'Antigravity IDE' directory; fall back to legacy 'Antigravity'
+    const newPath = path.join(appData, 'Antigravity IDE', 'logs');
+    const legacyPath = path.join(appData, 'Antigravity', 'logs');
+    if (fs.existsSync(newPath)) return newPath;
+    return legacyPath;
 }
 
 function findLatestAntigravityMcpUrlFromLogs() {
@@ -443,26 +467,32 @@ function normalizeCdpPort(value, fallback = DEFAULT_CDP_PORT) {
 
 function readAntigravityDevToolsMarker() {
     const appDataDir = process.env.APPDATA || path.join(os.homedir(), 'AppData', 'Roaming');
-    const markerPath = path.join(appDataDir, 'Antigravity', 'DevToolsActivePort');
-    if (!fs.existsSync(markerPath)) {
-        return { found: false, path: markerPath, port: 0, browserPath: '', ageMs: Number.POSITIVE_INFINITY };
+    // Antigravity 2.x uses 'Antigravity IDE' directory; fall back to legacy 'Antigravity'
+    const candidates = [
+        path.join(appDataDir, 'Antigravity IDE', 'DevToolsActivePort'),
+        path.join(appDataDir, 'Antigravity', 'DevToolsActivePort')
+    ];
+    for (const markerPath of candidates) {
+        if (!fs.existsSync(markerPath)) continue;
+        try {
+            const stat = fs.statSync(markerPath);
+            const raw = fs.readFileSync(markerPath, 'utf8');
+            const lines = raw.split(/\r?\n/).map(line => line.trim()).filter(Boolean);
+            const port = normalizeCdpPort(lines[0], 0);
+            if (port > 0) {
+                return {
+                    found: true,
+                    path: markerPath,
+                    port,
+                    browserPath: lines[1] || '',
+                    ageMs: Date.now() - stat.mtimeMs
+                };
+            }
+        } catch (err) {
+            // Try next candidate
+        }
     }
-
-    try {
-        const stat = fs.statSync(markerPath);
-        const raw = fs.readFileSync(markerPath, 'utf8');
-        const lines = raw.split(/\r?\n/).map(line => line.trim()).filter(Boolean);
-        const port = normalizeCdpPort(lines[0], 0);
-        return {
-            found: port > 0,
-            path: markerPath,
-            port,
-            browserPath: lines[1] || '',
-            ageMs: Date.now() - stat.mtimeMs
-        };
-    } catch (err) {
-        return { found: false, path: markerPath, port: 0, browserPath: '', ageMs: Number.POSITIVE_INFINITY };
-    }
+    return { found: false, path: candidates[0], port: 0, browserPath: '', ageMs: Number.POSITIVE_INFINITY };
 }
 
 function getCdpPortCandidates(preferredPort) {
@@ -745,6 +775,12 @@ function resolveEditorExecutable(ideName) {
             appName: 'Antigravity',
             exePath: path.join(localAppData, 'Programs', 'Antigravity', 'Antigravity.exe'),
             exeCandidates: [
+                // Antigravity 2.x paths (Antigravity IDE)
+                path.join(localAppData, 'Programs', 'Antigravity IDE', 'Antigravity IDE.exe'),
+                path.join(localAppData, 'Programs', 'antigravity-ide', 'Antigravity IDE.exe'),
+                path.join(programFiles, 'Antigravity IDE', 'Antigravity IDE.exe'),
+                path.join(programFilesX86, 'Antigravity IDE', 'Antigravity IDE.exe'),
+                // Legacy 1.x paths
                 path.join(localAppData, 'Programs', 'Antigravity', 'Antigravity.exe'),
                 path.join(localAppData, 'Programs', 'antigravity', 'Antigravity.exe'),
                 path.join(programFiles, 'Antigravity', 'Antigravity.exe'),
@@ -752,9 +788,13 @@ function resolveEditorExecutable(ideName) {
             ],
             configuredPath: getConfiguredExecutablePath('antigravity'),
             configKey: ANTIGRAVITY_EXECUTABLE_PATH_KEY,
-            processName: 'Antigravity.exe',
-            macAppName: 'Antigravity',
-            linuxCommand: 'antigravity'
+            processName: 'Antigravity IDE.exe',
+            // Antigravity 2.x renamed macOS app to 'Antigravity IDE'; fall back to legacy 'Antigravity'
+            macAppName: 'Antigravity IDE',
+            macAppNameFallback: 'Antigravity',
+            // Antigravity 2.x renamed Linux command to 'antigravity-ide'; fall back to legacy 'antigravity'
+            linuxCommand: 'antigravity-ide',
+            linuxCommandFallback: 'antigravity'
         };
     }
 
@@ -1056,8 +1096,10 @@ function writePosixCdpLauncher(exeInfo, port = cdpPort) {
         : `Start ${appLabel} (CDP ${port}).sh`;
     const launcherPath = path.join(launcherDir, launcherName);
     const configured = validateConfiguredExecutablePath(exeInfo);
-    const commandName = isMac ? '' : (exeInfo.linuxCommand || 'antigravity');
+    const commandName = isMac ? '' : (exeInfo.linuxCommand || 'antigravity-ide');
+    const commandFallback = isMac ? '' : (exeInfo.linuxCommandFallback || 'antigravity');
     const appName = exeInfo.macAppName || exeInfo.appName;
+    const appNameFallback = exeInfo.macAppNameFallback || '';
 
     const launcherLines = isMac
         ? (configured.valid && configured.path
@@ -1072,22 +1114,43 @@ function writePosixCdpLauncher(exeInfo, port = cdpPort) {
                     'set -eu',
                     `nohup ${quoteShArg(configured.path)} --remote-debugging-port=${port} >/dev/null 2>&1 &`
                 ])
-            : [
-                '#!/bin/sh',
-                'set -eu',
-                `open -n -a ${quoteShArg(appName)} --args --remote-debugging-port=${port}`
-            ])
+            : (appNameFallback
+                ? [
+                    '#!/bin/sh',
+                    'set -eu',
+                    `if open -n -a ${quoteShArg(appName)} --args --remote-debugging-port=${port} 2>/dev/null; then`,
+                    '  exit 0',
+                    'fi',
+                    `open -n -a ${quoteShArg(appNameFallback)} --args --remote-debugging-port=${port}`
+                ]
+                : [
+                    '#!/bin/sh',
+                    'set -eu',
+                    `open -n -a ${quoteShArg(appName)} --args --remote-debugging-port=${port}`
+                ]))
         : [
             '#!/usr/bin/env sh',
             'set -eu',
             ...(configured.valid && configured.path
                 ? [`nohup ${quoteShArg(configured.path)} --remote-debugging-port=${port} >/dev/null 2>&1 &`]
                 : [
-                    `if ! command -v ${quoteShArg(commandName)} >/dev/null 2>&1; then`,
-                    `  echo "Command '${commandName}' not found in PATH." >&2`,
-                    '  exit 1',
-                    'fi',
-                    `nohup ${quoteShArg(commandName)} --remote-debugging-port=${port} >/dev/null 2>&1 &`
+                    `# Try Antigravity 2.x command first, fall back to legacy 1.x`,
+                    `if command -v ${quoteShArg(commandName)} >/dev/null 2>&1; then`,
+                    `  nohup ${quoteShArg(commandName)} --remote-debugging-port=${port} >/dev/null 2>&1 &`,
+                    `  exit 0`,
+                    `fi`,
+                    ...(commandFallback
+                        ? [
+                            `if command -v ${quoteShArg(commandFallback)} >/dev/null 2>&1; then`,
+                            `  nohup ${quoteShArg(commandFallback)} --remote-debugging-port=${port} >/dev/null 2>&1 &`,
+                            `  exit 0`,
+                            `fi`,
+                            `echo "Neither '${commandName}' nor '${commandFallback}' found in PATH." >&2`
+                        ]
+                        : [
+                            `echo "Command '${commandName}' not found in PATH." >&2`
+                        ]),
+                    'exit 1'
                 ])
         ];
 
@@ -1388,7 +1451,19 @@ function buildPortableLauncherScript(exeInfo, port = cdpPort) {
                 `nohup ${quoteShArg(configured.path)} --remote-debugging-port=${expectedPort} "$@" >/dev/null 2>&1 &`
             ].join('\n') + '\n';
         }
-        const appName = exeInfo?.macAppName || exeInfo?.appName || 'Antigravity';
+        const appName = exeInfo?.macAppName || exeInfo?.appName || 'Antigravity IDE';
+        const fallbackAppName = exeInfo?.macAppNameFallback || '';
+        if (fallbackAppName) {
+            // Try 2.x app name first, fall back to 1.x
+            return [
+                '#!/bin/sh',
+                'set -eu',
+                `if open -n -a ${quoteShArg(appName)} --args --remote-debugging-port=${expectedPort} "$@" 2>/dev/null; then`,
+                '  exit 0',
+                'fi',
+                `open -n -a ${quoteShArg(fallbackAppName)} --args --remote-debugging-port=${expectedPort} "$@"`
+            ].join('\n') + '\n';
+        }
         return [
             '#!/bin/sh',
             'set -eu',
@@ -1407,15 +1482,22 @@ function buildPortableLauncherScript(exeInfo, port = cdpPort) {
         ].join('\n') + '\n';
     }
 
-    const commandName = exeInfo?.linuxCommand || ((currentIDE || '').toLowerCase() === 'cursor' ? 'cursor' : 'antigravity');
+    const commandName = exeInfo?.linuxCommand || ((currentIDE || '').toLowerCase() === 'cursor' ? 'cursor' : 'antigravity-ide');
+    const fallbackCommand = exeInfo?.linuxCommandFallback || 'antigravity';
     return [
         '#!/usr/bin/env sh',
         'set -eu',
-        `if ! command -v ${quoteShArg(commandName)} >/dev/null 2>&1; then`,
-        `  echo "Command '${commandName}' not found in PATH." >&2`,
-        '  exit 1',
-        'fi',
-        `nohup ${quoteShArg(commandName)} --remote-debugging-port=${expectedPort} "$@" >/dev/null 2>&1 &`
+        `# Try Antigravity 2.x command first, fall back to legacy 1.x`,
+        `if command -v ${quoteShArg(commandName)} >/dev/null 2>&1; then`,
+        `  nohup ${quoteShArg(commandName)} --remote-debugging-port=${expectedPort} "$@" >/dev/null 2>&1 &`,
+        `  exit 0`,
+        `fi`,
+        `if command -v ${quoteShArg(fallbackCommand)} >/dev/null 2>&1; then`,
+        `  nohup ${quoteShArg(fallbackCommand)} --remote-debugging-port=${expectedPort} "$@" >/dev/null 2>&1 &`,
+        `  exit 0`,
+        `fi`,
+        `echo "Neither '${commandName}' nor '${fallbackCommand}' found in PATH." >&2`,
+        'exit 1'
     ].join('\n') + '\n';
 }
 

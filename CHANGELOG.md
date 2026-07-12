@@ -2,6 +2,26 @@
 
 All notable changes to the **Antigravity Auto Accept** extension are documented here.
 
+## [1.3.0] - 2026-07-10
+
+### Added
+- Full compatibility with **Antigravity IDE 2.x** (the renamed VS Code-based IDE).
+- New Antigravity 2.x agent command IDs: `antigravity.agent.proceed`, `antigravity.agent.trust`, `antigravity.agent.acceptAction`, `antigravity.agent.approveStep`, `antigravity.command.proceed`, `antigravity.command.trust`.
+- New DOM selectors for Antigravity 2.x agent harness UI: `[data-testid*="agent-action"]`, `[data-testid*="agent-step"]`, `[class*="agent-harness"]`, `.agent-inbox-item`.
+- New approval button keywords: "Proceed" and "Trust" alongside existing "Accept", "Allow", "Keep", "Apply".
+- New permission prompt markers for 2.x agent approval flows: `proceed with this action`, `agent needs approval`, `trust this action`, `action requires approval`.
+- Dynamic command discovery now recognizes `trust`, `approvestep`, `acceptaction`, `agentproceed`, `agenttrust`.
+
+### Changed
+- Executable detection now searches both `Antigravity IDE` (2.x) and `Antigravity` (1.x) installation directories on Windows.
+- macOS launcher generation now tries `Antigravity IDE.app` first, falling back to `Antigravity.app`.
+- Linux launcher generation now tries `antigravity-ide` command first, falling back to `antigravity`.
+- `DevToolsActivePort` marker search now checks both `Antigravity IDE` and `Antigravity` config directories.
+- MCP log discovery now checks both `Antigravity IDE` and `Antigravity` log directories.
+
+### Fixed
+- IDE detection continues to work after the `vscode.env.appName` rename from `"Antigravity"` to `"Antigravity IDE"` (the `includes()` check already handles both).
+
 ## [1.2.0] - 2026-04-26
 
 ### Fixed

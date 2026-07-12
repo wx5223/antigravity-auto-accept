@@ -1,8 +1,8 @@
 {
   "name": "antigravity-auto-accept",
   "displayName": "Antigravity Auto Accept",
-  "description": "Auto-accept Antigravity approval prompts, terminal run confirmations, and agent actions with a CDP control panel and launcher setup.",
-  "version": "1.2.0",
+  "description": "Auto-accept Antigravity approval prompts, terminal run confirmations, and agent actions with a CDP control panel and launcher setup. Compatible with Antigravity IDE 1.x and 2.x.",
+  "version": "1.3.0",
   "publisher": "pesosz",
   "license": "MIT",
   "icon": "media/icon.png",

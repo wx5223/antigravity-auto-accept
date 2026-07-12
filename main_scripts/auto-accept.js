@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Antigravity Auto Accept - Injected script
  * Free and open-source edition
  * 
@@ -90,12 +90,27 @@
         'button[data-action="accept"]',
         '[class*="cursor"] [class*="accept"]',
         
+        // Antigravity 2.x agent harness
+        '[data-testid*="agent-action"] button',
+        '[data-testid*="agent-step"] button',
+        '[class*="agent-harness"] button',
+        '[class*="agent-step"] button',
+        'button[data-action="proceed"]',
+        'button[aria-label*="Proceed"]',
+        'button[title*="Proceed"]',
+        'button[aria-label*="Trust"]',
+        'button[title*="Trust"]',
+        '.agent-inbox-item button',
+        
         // Generic
         'button:contains("Accept")',
         'button:contains("Keep")',
         'button:contains("Apply")',
         'button:contains("Save")',
-        '[role="button"]:contains("Accept")'
+        'button:contains("Proceed")',
+        'button:contains("Trust")',
+        '[role="button"]:contains("Accept")',
+        '[role="button"]:contains("Proceed")'
     ];
 
     // Terminal buttons
@@ -104,12 +119,34 @@
         'button[title*="Run in terminal"]',
         'button[title*=" terminal"]',
         '.terminal-accept-button',
-        '[class*="terminal"] [class*="accept"]'
+        '[class*="terminal"] [class*="accept"]',
+        // Antigravity 2.x terminal approval
+        '[data-testid*="agent-action"] button[data-action="proceed"]',
+        '[class*="agent-harness"] button[title*="Run"]'
     ];
 
     // =================================================================
     // MAIN FUNCTION: CLICK BUTTONS
     // =================================================================
+
+    const PROMPT_CONTEXT_SELECTOR = [
+        '[role="dialog"]',
+        '.notification-toast',
+        '.notification-list-item',
+        '.monaco-dialog-box',
+        '.monaco-dialog-modal-block',
+        '.interactive-session',
+        '.chat-tool-call',
+        '.chat-tool-response',
+        '[class*="tool-call"]',
+        '[data-testid*="tool-call"]',
+        '[data-testid*="agent-action"]',
+        '[data-testid*="agent-step"]',
+        '[class*="agent-harness"]',
+        '[class*="agent-step"]',
+        '.agent-inbox-item',
+        '.antigravity-agent-side-panel'
+    ].join(', ');
 
     function getActionText(el) {
         const text = (el?.textContent || '').trim();
@@ -215,9 +252,7 @@
                 return true;
             }
 
-            const inPromptContext = !!el.closest(
-                '[role="dialog"], .notification-toast, .notification-list-item, .monaco-dialog-box, .monaco-dialog-modal-block, .interactive-session, .chat-tool-call, .chat-tool-response, [class*="tool-call"], [data-testid*="tool-call"]'
-            );
+            const inPromptContext = !!el.closest(PROMPT_CONTEXT_SELECTOR);
 
             // Nunca clique em controles globais da interface do editor
             const inWorkbenchChrome = !!el.closest(
@@ -270,7 +305,7 @@
                         state.permissionApprovals = (state.permissionApprovals || 0) + 1;
                         window.__autoAcceptFreeState = state;
 
-                        const origin = el.closest('[role="dialog"], .notification-toast, .notification-list-item, .monaco-dialog-box, .monaco-dialog-modal-block, .chat-tool-call, .chat-tool-response, [class*="tool-call"], [data-testid*="tool-call"]');
+                        const origin = el.closest(PROMPT_CONTEXT_SELECTOR);
                         if (origin && origin.setAttribute) {
                             origin.setAttribute('data-aaf-permission-origin-at', String(now));
                         }
@@ -304,7 +339,7 @@
                 }
 
                 // Only send shortcut when there is a visible run-command prompt context
-                const promptScopes = queryAll('[role="dialog"], .notification-toast, .notification-list-item, .monaco-dialog-box, .monaco-dialog-modal-block, .interactive-session, .chat-tool-call, .chat-tool-response, [class*="tool-call"], [data-testid*="tool-call"]');
+                const promptScopes = queryAll(PROMPT_CONTEXT_SELECTOR);
                 const prompt = promptScopes.find(node => {
                     const t = getActionText(node);
                     if (!t) return false;
@@ -389,12 +424,20 @@
             'file access',
             'workspace access',
             'allow file access to',
-            'allow for this conversation'
+            'allow for this conversation',
+            // Antigravity 2.x permission markers
+            'proceed with this action',
+            'agent needs approval',
+            'trust this action',
+            'agent is requesting',
+            'agent wants to',
+            'approve this action',
+            'action requires approval'
         ];
         const isPermissionBlockAction = (txt) => /\ballowlist\b|\bdeny\b|\breject\b|\bcancel\b|\bconfigure\b|\bsettings?\b/i.test(txt);
         const isPermissionAllowAction = (txt) => {
             if (!txt || isPermissionBlockAction(txt)) return false;
-            return /\ballow\b|\bapprove\b|\bgrant\b|^always\b/i.test(txt);
+            return /\ballow\b|\bapprove\b|\bgrant\b|^always\b|\bproceed\b|\btrust\b|\bsubmit\b|\bconfirm\b/i.test(txt);
         };
         const isPermissionPromptContainer = (containerText, buttons) => {
             if (!containerText || containerText.includes('allowlist')) return false;
@@ -488,7 +531,7 @@
         };
 
         // 1) Priority: permission prompts (Always Allow / Allow Once / Allow)
-        const promptContainers = queryAll('[role="dialog"], .notification-toast, .notification-list-item, .monaco-dialog-box, .monaco-dialog-modal-block, .chat-tool-call, .chat-tool-response, [class*="tool-call"], [data-testid*="tool-call"], .antigravity-agent-side-panel');
+        const promptContainers = queryAll(PROMPT_CONTEXT_SELECTOR);
         const allActionButtons = [];
         const seenActionButtons = new Set();
         for (const container of promptContainers) {
@@ -538,7 +581,7 @@
         }
 
         const findActionContext = (btn) => {
-            const direct = btn.closest('[role="dialog"], .notification-toast, .notification-list-item, .monaco-dialog-box, .monaco-dialog-modal-block, .chat-tool-call, .chat-tool-response, [class*="tool-call"], [data-testid*="tool-call"]');
+            const direct = btn.closest(PROMPT_CONTEXT_SELECTOR);
             if (direct) return direct;
 
             let node = btn.parentElement;
@@ -914,8 +957,11 @@
             'continue',
             'retry',
             'proceed',
+            'trust',
             'run command',
-            'run in terminal'
+            'run in terminal',
+            'submit',
+            'confirm'
         ];
         const negativeKeywords = ['deny', 'cancel', 'reject', 'block', 'stop', 'disable', 'never', 'discard', 'configure', 'setting', 'settings', 'policy', 'allowlist', 'manage'];
         const allButtons = allActionButtons;
@@ -932,7 +978,7 @@
                 continue;
             }
 
-            const isScopedToPrompt = !!btn.closest('[role="dialog"], .notification-toast, .notification-list-item, .monaco-dialog-box, .monaco-dialog-modal-block, .chat-tool-call, .chat-tool-response, [class*="tool-call"], [data-testid*="tool-call"]');
+            const isScopedToPrompt = !!btn.closest(PROMPT_CONTEXT_SELECTOR);
             if (!isScopedToPrompt) {
                 continue;
             }

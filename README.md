@@ -6,10 +6,12 @@ It includes a control panel for CDP status, launcher generation, and runtime sta
 
 Supported workflow today:
 
-- Antigravity approval prompts
+- Antigravity IDE 1.x and 2.x approval prompts
 - terminal run approvals
 - CDP launcher setup and control panel flow
 - Antigravity, Cursor, and VS Code environments
+
+> **Note:** This extension works with the VS Code-based **Antigravity IDE** (both 1.x and 2.x). The standalone **Antigravity 2.0 desktop app** uses a different architecture and is not supported by this extension.
 
 ## Support
 
@@ -31,7 +33,7 @@ https://github.com/pesoszpesosz/antigravity-auto-accept/issues
 
 Current version:
 
-- `1.2.0`
+- `1.3.0`
 
 Download:
 
@@ -200,12 +202,20 @@ Start-Process $exe -ArgumentList '--remote-debugging-port=9000'
 ### macOS
 
 ```bash
+# Antigravity IDE 2.x
+open -n -a "Antigravity IDE" --args --remote-debugging-port=9000
+
+# Legacy Antigravity 1.x
 open -n -a Antigravity --args --remote-debugging-port=9000
 ```
 
 ### Linux
 
 ```bash
+# Antigravity IDE 2.x
+antigravity-ide --remote-debugging-port=9000 >/dev/null 2>&1 &
+
+# Legacy Antigravity 1.x
 antigravity --remote-debugging-port=9000 >/dev/null 2>&1 &
 ```
 
